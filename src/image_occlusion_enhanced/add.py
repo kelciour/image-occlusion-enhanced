@@ -70,6 +70,8 @@ class ImgOccAdd(object):
         self.mode = "add"
         self.origin = origin
         self.opref = {}  # original io session preference
+        self.image_paths = []
+        self.is_close = False
         loadConfig(self)
 
     def occlude(self, image_path=None):
@@ -188,20 +190,22 @@ class ImgOccAdd(object):
         if not prev_image_dir or not os.path.isdir(prev_image_dir):
             prev_image_dir = IO_HOME
 
-        image_path = QFileDialog.getOpenFileName(
+        self.image_paths = QFileDialog.getOpenFileNames(
             parent,
             _("Select an Image"),
             prev_image_dir,
             _("""Image Files ({file_glob_list})""").format(
                 file_glob_list=" ".join("*." + ext for ext in SUPPORTED_EXTENSIONS)
             ),
-        )
-        if image_path:
-            image_path = image_path[0]
-
-        if not image_path:
+        )[0]
+        if self.image_paths:
+            if len(self.image_paths) > 1:
+                self.is_close = True
+            image_path = self.image_paths.pop(0)
+        else:
             return None
-        elif not os.path.isfile(image_path):
+
+        if not os.path.isfile(image_path):
             tooltip(_("Invalid image file path"))
             return False
         else:
@@ -291,7 +295,10 @@ class ImgOccAdd(object):
 
     def onChangeImage(self):
         """Change canvas background image"""
-        image_path = self.getNewImage()
+        if self.image_paths:
+            image_path = self.image_paths.pop(0)
+        else:
+            image_path = self.getNewImage()
         if not image_path:
             return False
         try:
@@ -364,6 +371,17 @@ class ImgOccAdd(object):
 
         if close:
             dialog.close()
+        else:
+            if self.image_paths:
+                self.imgoccedit.svg_edit.eval(
+                    f"""
+                    svgCanvas.clear();
+                    """
+                )
+                self.onChangeImage()
+            else:
+                if self.is_close:
+                    dialog.close()
 
         mw.reset()
 
